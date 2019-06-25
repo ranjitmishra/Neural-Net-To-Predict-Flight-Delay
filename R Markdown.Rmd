@@ -1,0 +1,105 @@
+---
+title: "Neural Network Example"
+author: "Ranjit Mishra"
+date: "Friday, June 07, 2019"
+output:
+    slidy_presentation:
+    highlight: zenburn
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+The below piece of code is a demontrastion of neural netwrok concepts in R. The R code uses 'weatherdata.csv' to train the NN for 'delayed flight' prediction. There is another file called 'newdata.csv' for preidicting whether a flight would be delayed or not. 
+
+```{r}
+setwd("~/Analytics/Module 3/Week 8")
+
+idata <- read.csv("weatherdata.csv")
+
+summary(idata)
+
+library(neuralnet)
+
+## Let's create training and test set for training the neural net. Neural net needs relatively large sample for meaningful prediction. Using 100 observations to train the NN. 
+
+set.seed (1)
+train <- sample(1:nrow(idata), size = 100)
+
+train_data <- idata[train,]
+
+test <- idata[-train,]
+
+## run neural net on training set with stepmax = 100000, hidden = 3, err.fct = "sse", and linear.output = FALSE. 
+
+## 100000 has been used as stepmax, within which the neural net needs to converge. The training process of Neural network will stop when this maximum limit is reached. 
+## Hidden is specified as 4, which means that there should be 4 nodes in the hidden layer. Hidden layers are the layers between input and output layers. 
+## Err.fct is the error (difference between the prediction and actual response) that is used by the estimation process iteratively to update the estimated weights in neural network. Here, it's calculated by Sum of Squared Error (sse). There is another option called cross-entroy (ce),
+## linear.output is set to 'False' because the neural network should not collapse to a linear model, that is output should not be linear. This option also depends on the act.fnc, which is a differential function for smoothing the result of the cross product of the neurons and the weights. This is mostly set to False (in this case it's a classification prediction, so linear output is not required anyway) in practice because that seems to give better results.
+
+nnet <- neuralnet(delayed ~ temperature+region+windspeed+precipitation,
+                  data = train_data, stepmax = 100000, hidden = 3,
+                  err.fct = "ce",
+                  linear.output = FALSE)
+
+## Plot the NN
+plot(nnet, rep = "best")
+
+## In the above plot, weights are shown by the arrows. Blue circles/lines represent biases and their weights. Error value and steps used for this neural network are shown at the bottom of the plot. The plot has 3 hidden nodes and one hidden layer.
+
+## Predict thru "compute" function. Compare the predicted output to the known cases of delayed flights
+
+temp_x <- subset(test, select = c('temperature', "region", 
+                                   "windspeed", "precipitation"))
+str(temp_x)
+
+yhat <- compute(nnet, temp_x)
+
+
+## Make the result readable 
+results <- data.frame(actual = test$delayed,
+                      prediction = yhat$net.result)
+
+results$prediction <- round(results$prediction)
+
+table(results)
+
+## The above table between actual and predicted delayed flights shows that 27 out of 48 (I am taking '1' as delayed flights) is being predicted correctly by this model, which is around 56%.
+
+## Let's now try to improve the moel by reducing the hidden layers. Use 2 hidden layers only and compare the correctness of prediction. 
+
+nnet1 <- neuralnet(delayed ~ temperature+region+windspeed+precipitation,
+                  data = train_data, stepmax = 100000, hidden = 2,
+                  err.fct = "sse",
+                  linear.output = FALSE)
+
+plot(nnet1, rep = "best")
+
+temp_n <- subset(test, select = c('temperature', "region", 
+                                  "windspeed", "precipitation"))
+
+yhat1 <- compute(nnet1, temp_n)
+
+results <- data.frame(actual = test$delayed,
+                      prediction = yhat1$net.result)
+
+results$prediction <- round(results$prediction)
+
+table(results)
+
+## In the above case the predictability of the model to predict delayed flights has increased dramatically.  We can see from the above output that 83% delayed flights are predicted correctly in the test set. So, this model can be used to move forward, but there might be a case for over-fitting also. Over fitting would require further analysis by controlling the learning rate and the momentum, which are not being done for this demostration. 
+
+## Use the model with 2 hidden layers to predict new data
+ndata <- read.csv("newdata.csv")
+str(ndata)
+
+yhat2 <- compute(nnet1, ndata)
+
+results <- data.frame(prediction = yhat2$net.result)
+results$prediction <- round(results$prediction)
+
+result1 <- data.frame(ndata, results)
+result1
+
+## It seems flight would be delayed (prediction = 1) if precipitation = 1 in region = 1 and temperature = 22, irrespective of wind speed (0 or 1). 
+
+```
